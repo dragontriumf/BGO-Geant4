@@ -1,0 +1,5 @@
+#include "HistoManager.hh"
+
+int g_count;
+
+HistoManager g_HisMgr;

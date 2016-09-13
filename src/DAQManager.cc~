@@ -1,0 +1,288 @@
+#include "DAQManager.hh"
+
+namespace {
+  std::vector<double> E_gamma;//energy of each gamma detected
+  std::vector<int> N_det;//coresponding detector number
+}
+
+//-------------------------------------------------------------------------
+
+DAQManager::DAQManager(InputManager* aInMgr, CascadeGenerator* aCasGen) {
+
+  InMgr = aInMgr;
+  CasGen = aCasGen;
+
+  InMgr->GetVariable("run_start",N_run);
+//  N_run-=1;
+  N_coinc = 0;
+  N_event = 0;
+
+//  h_Etotconv = new TH1F("Etotconv","Etotconv",200,0,20);
+
+/*
+  ifstream ifs("input.dat");
+
+  double a,b;
+
+  while(1) {
+    if(!ifs.good()) break;
+    ifs >> a >> b;
+    h_bgoE2->SetBinContent(a,b);//experimental data
+  }
+*/
+}
+
+//-------------------------------------------------------------------------
+
+DAQManager::~DAQManager() {
+
+//  f1->Write();
+
+}
+
+//-------------------------------------------------------------------------
+
+void DAQManager::StartOfRun() {
+
+  char FileName[30];
+  string choice;
+
+  InMgr->GetVariable("CascType",choice);
+
+  if (choice=="Regular") {
+    sprintf(FileName,"Run_%i.root", N_run);
+  }
+  else if (choice=="Custom") {
+    InMgr->GetVariable("Filename",FileName);
+  }
+  else {
+    G4cout << "error: " << choice << " is not a valid CascType" << G4endl;
+    exit(1);
+  }
+
+  f1 = new TFile(FileName,"RECREATE");
+
+  EventTree = new TTree("Event", "Event");
+  RunTree = new TTree("Run", "Run");
+  EventBranch = EventTree->Branch("Events", &data_event, "sum/F:esort[10]:ecal[30]:Mult/I");
+  RunBranch   = RunTree->Branch("Run", &data_run, "Event/I:Run/I:cascade[5]/F");
+
+  for (int j=0; j<5; j++) {
+    data_run.cascade[j] = 0;
+  }
+
+  char name[30];
+  sprintf(name,"E_%i", N_run);
+  h_E    = new TH2F(name,name,1500,0,15,10,0,10);
+  sprintf(name,"Etot_%i", N_run);
+  h_Etot = new TH1F(name,name,200,0,20);
+  sprintf(name,"Mult_%i", N_run);
+  h_mult = new TH1F(name,name,10,0,10);
+
+}
+
+//-------------------------------------------------------------------------
+
+void DAQManager::EndOfRun() {
+
+  data_run.Event = N_event;
+
+  eff = double(N_coinc)/double(N_event);
+
+  N_event = 0;
+  N_coinc = 0;
+
+//  MultLikelihood();
+//  EtotLikelihood();
+
+  data_run.Run = N_run;
+
+  std::vector<double> cascade = CasGen->GetCascade();
+  std::vector<double>::iterator it;
+
+  int i=0;
+
+  for (it=cascade.begin(); it!=cascade.end(); it++) {
+    data_run.cascade[i] = *it;
+    i++;
+  }
+
+  RunTree->Fill();
+
+  f1->Write();
+
+  delete EventTree;
+  delete RunTree;
+
+  delete h_E;
+  delete h_Etot;
+  delete h_mult;
+
+  N_run += 1;
+
+/*
+  float energy[200];
+  float counts[200];
+
+  for (int i=1; i<= h_Etot->GetNbinsX(); i++) {
+    energy[i] = 0.1*double(i);
+    counts[i] = h_Etot->GetBinContent(i);
+  }
+
+  for (int j=2; j<= h_Etot->GetNbinsX(); j++) {
+    h_Etotconv->SetBinContent(j,gaus(energy,counts,j-1));
+  }
+*/
+}
+
+//-------------------------------------------------------------------------
+//detector convolution
+float DAQManager::gaus(float energy[200], float counts[200], int j) {
+
+  float factor = sqrt(8.0*log(2.0));
+  float k = 0.1733;
+  float pi = 3.14159265;
+  float sigma = (k*sqrt(energy[j]))/factor;
+  float calcGaus[200];
+  float sum=0.0;
+
+  for (int i=0; i<200; i++){
+    calcGaus[i] = 0;
+  }
+
+  for (int i=0; i<200; i++){
+    calcGaus[i]=(0.084/(sqrt(2*pi*sigma*sigma)))*(exp(-((energy[i]-energy[j])*(energy[i]-energy[j]))/(2*sigma*sigma)));
+  }
+
+  for (int i=0; i<200; i++){
+    sum = sum + calcGaus[i]*counts[i];
+  }
+
+  G4cout << j << "\t" << sum << G4endl;
+
+  return sum;
+
+}
+
+//-------------------------------------------------------------------------
+
+void DAQManager::StartOfEvent() {
+
+  N_event+=1;
+
+  data_event.sum = -1;
+  data_event.Mult = -1;
+
+}
+
+//-------------------------------------------------------------------------
+
+bool Decend (double i,double j) {
+  return (i>j);//used to sort gamma enery array
+}
+
+//-------------------------------------------------------------------------
+
+void DAQManager::EndOfEvent() {
+
+  double Etot=0;
+
+  for (int i=0; i<10; i++) {
+    data_event.esort[i] = -1;
+  }
+
+  for (int i=0; i<30; i++) {
+    data_event.ecal[i] = -1;
+  }
+
+  if (E_gamma.size() == 0) {
+    data_event.sum = -1;
+    EventTree->Fill();
+    return;
+  }
+
+  std::vector<double> E_orig = E_gamma;//unsorted energy array
+  std::sort(E_gamma.begin(),E_gamma.end(),Decend);//sort energy array in decending order
+
+  std::vector<double>::iterator it;//gamma E
+  std::vector<int>::iterator it2;//det number
+  it=E_gamma.begin();//E0, MeV
+  it2=N_det.begin();
+
+  if (*it>0.0) {//if E0 above 0 regester event as coincidence
+    N_coinc += 1;
+
+//    G4cout << "coincidence!!" << "\t";//verbosity == high
+
+    mult = E_gamma.size();//multiplicity
+    h_mult->Fill(mult-1,1.);
+    data_event.Mult = mult;
+
+    for (int i=0; it!=E_gamma.end(); it++) {
+      h_E->Fill(*it,i,1.);
+      data_event.esort[i] = *it;
+      Etot+=*it;
+      i++;
+//      G4cout << data_event.esort[i] << G4endl;
+    }
+
+    for (int i=0; i<E_orig.size(); i++) {
+//      G4cout << N_det.at(i) << "\t" << E_orig.at(i) << G4endl;
+      int detnum = N_det.at(i)-1;
+      data_event.ecal[detnum]=E_orig.at(i);
+    }
+
+    h_Etot->Fill(Etot,1.);
+    data_event.sum = Etot;
+
+  }
+
+ //verbosity == high
+/*  G4cout << E_gamma.size() << "\t";
+  for (it=E_gamma.begin(); it!=E_gamma.end(); it++) {
+    G4cout << *it << "\t";
+  }
+  G4cout << G4endl;
+*/
+  E_gamma.clear();
+  N_det.clear();
+
+  EventTree->Fill();
+
+}
+
+//-------------------------------------------------------------------------
+
+void DAQManager::SetGammaE(double E) {
+  E_gamma.push_back(E);
+}
+
+void DAQManager::SetDetNum(int n) {
+  N_det.push_back(n);
+}
+
+//-------------------------------------------------------------------------
+
+void DAQManager::Write() {
+
+  h_E->Write();
+  h_Etot->Write();
+  h_mult->Write();
+
+}
+
+//-------------------------------------------------------------------------
+
+double factorial(int number) {
+
+  if (number==0) return 1;
+
+  int n;
+  double factorial=number;
+  for (n=number;n>1;n--) {
+    factorial*=(n-1);
+  }
+
+  return factorial;
+
+}

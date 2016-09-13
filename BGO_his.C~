@@ -1,0 +1,24 @@
+{
+std::ifstream inFile1("spectrum50ch.txt");
+h1 = new TH2F("h1","BGO",300,0,7000,31,0,31);
+
+std::ifstream inFile1("spectrum.txt");
+
+int n1,;
+
+for (int i=0;i<7000;i++) {
+
+  for (int j=0;j<30;j++) {
+    inFile1 >> n1;
+    h1->Fill(i,j,n1);
+  }
+
+}
+
+TFile file("BGO.root","RECREATE");
+
+h1->Write();
+new TCanvas("c1","c1",1);
+h1->Draw("colz");
+c1->Print("Results.png");
+}

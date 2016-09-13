@@ -1,0 +1,3 @@
+#!/bin/bash
+
+g++ -O3 $(root-config --cflags --libs) analysisE0E1.C -o analysis

@@ -1,0 +1,22 @@
+GeomType	Regular		### Type of geometry: "Regular" (full array) or "Single" (one det 10cm from source)
+CascType	Custom		### Type of cascade: "Regular (loops over posible combinations) or "Custom" (levels entered here)
+Conv		1		### Detector convolution 1=on 0=off
+
+E_x		10.5		###Energy of excited state for "Regular" CascType
+
+n_bin		2		### Number of energy divisions in level scheme for "Regular" CascType
+run_start	1		### Run start number (default=1, only needed for "Regular" CascType)
+run_end		191		### Run end number
+
+n_gammas	5		### Number of gammas in "Custom" CascType, max =5
+E0		2.1		### gamma energy MeV
+E1		2.1
+E2		2.1
+E3		2.1
+E4		2.1
+
+N_events	100000		### Number of events per cascade
+
+viewer		0		### 1=on 0=off
+
+Filename	1.1_MeV.root	### Output file name for "Custom" CascType ("Regular" type is named numerically)

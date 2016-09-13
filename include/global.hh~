@@ -1,0 +1,17 @@
+#include "TH1.h"
+#include "TH2.h"
+#include "InputManager.hh"
+#include "CascadeGenerator.hh"
+#include <vector>
+
+TH1F* h_bgoE;//sim Etot data
+TH1F* h_bgoE2;//exp data
+TH2F* h_bgoE01;//sim E01 data
+TH1F* h_bgomult;//multiplicty
+TH1F* h_bgomult2;//exp multiplicity
+std::vector<double> E_gamma;//energy of each gamma detected
+double cascade[5];//cascade energies MeV
+double E01[4];
+
+CascadeGenerator* CasGen;
+

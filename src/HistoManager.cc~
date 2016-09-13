@@ -1,0 +1,219 @@
+#include "HistoManager.hh"
+
+namespace {
+  TFile file("BGO.root","RECREATE");
+  G4int hiscount;
+  G4int hiscount2;
+  G4String name;
+  G4String coinVol;
+  G4String coinVol2;
+  G4int size;
+}
+
+vector <G4String> namearray(0);//array of SD volume names
+vector <G4String> namearray2(0);//array of 2D SD volume names
+vector <G4String> namearrayJoin(0);//array of 2D SD volume names
+vector <TH1F*> hisarray(0);//array of 1D SD volume histograms
+vector <TH1F*> hisarraycoin(0);//coincidence histograms
+vector <TH2F*> hisarray2(0);//array of 2D SD volume histograms
+vector <TH2F*> hisarraycoin2(0);
+vector <G4int> Ebuffer(0);//buffer of energy values per event
+
+TH2F* hJoin;
+
+HistoManager::HistoManager() {
+
+  hiscount=0;
+  hiscount2=0;
+  namearray.reserve(50);
+  hisarray.reserve(50);
+  file.mkdir("singles");
+  file.mkdir("coincidence");
+  size=100;
+}
+
+HistoManager::~HistoManager() {
+
+  file.Write();
+
+}
+
+
+void HistoManager::AddHisto(G4String name) {
+
+  file.cd("/singles");
+  TH1F* h1 = new TH1F(name,name,size,0,size);
+
+  hiscount+=1;
+
+  Ebuffer.push_back(0);
+  Ebuffer.resize(hiscount);
+
+  namearray.push_back(name);
+  namearray.resize(hiscount);
+
+  hisarray.push_back(h1);
+  hisarray.resize(hiscount);
+
+  file.cd("/coincidence");
+  TH1F* h2 = new TH1F(name,name,size,0,size);
+
+  hisarraycoin.push_back(h2);
+  hisarraycoin.resize(hiscount);
+
+  coinVol = "NULL";
+  coinVol2= "NULL";
+
+}
+
+void HistoManager::AddHisto(G4String name0, G4String name1) {//adds 2D histograms to file
+
+  char name2[50];
+  const char* a;
+  const char* b;
+  a=name0.c_str();
+  b=name1.c_str();
+  sprintf(name2,"%svs%s",a,b);
+
+  file.cd("/singles");
+  TH2F* h3 = new TH2F(name2,name2,500,0,5000,500,0,5000);
+
+  hiscount2+=1;
+
+  namearray2.push_back(name0);
+  namearray2.push_back(name1);
+  namearray2.resize(2*hiscount2);
+
+  hisarray2.push_back(h3);
+  hisarray2.resize(hiscount2);
+
+  file.cd("/coincidence");
+  TH2F* h4 = new TH2F(name2,name2,500,0,5000,500,0,5000);
+
+  hisarraycoin2.push_back(h4);
+  hisarraycoin2.resize(hiscount2);
+
+  G4cout << G4endl;
+
+}
+
+void HistoManager::Join(G4String name0, G4String name1, G4String name2, G4String name3) {
+
+  char name4[50];
+  const char* a;
+  const char* b;
+  const char* c;
+  const char* d;
+  a=name0.c_str();
+  b=name1.c_str();
+  c=name2.c_str();
+  d=name3.c_str();
+  sprintf(name4,"%s, %s, %s, %s",a,b,c,d);
+
+  file.cd("/singles");
+  hJoin = new TH2F(name4,name4,size,0,size,4,0,4);
+
+  namearrayJoin.push_back(name0);
+  namearrayJoin.push_back(name1);
+  namearrayJoin.push_back(name2);
+  namearrayJoin.push_back(name3);
+
+} 
+
+void HistoManager::FillJoin() {
+
+  for (int n=0; n<hiscount; n++)  {
+    for (int m=0; m<4; m++)  {
+      if (namearray.at(n) == namearrayJoin.at(m)) {
+//        cout << Ebuffer.at(n) << " " << m << G4endl;
+        if (Ebuffer.at(n)>0) hJoin->Fill(Ebuffer.at(n),m,1);
+      }
+    }
+  }
+}
+
+void HistoManager::Fill(G4String name, G4int x, G4int count) {
+
+  file.cd("/singles");
+  for (int n=0; n<hiscount; n++)  {
+    if (name == namearray.at(n)) {
+      hisarray.at(n)->Fill(x,count);
+      Ebuffer.at(n)=x;
+    }
+  }
+
+}
+
+void HistoManager::Fill1D() {
+
+  //fills 1D histograms from coin array
+  for (G4int n=0; n<hiscount; n++) {
+    if (Ebuffer.at(n)>0) {
+      hisarraycoin.at(n)->Fill(Ebuffer.at(n),1);
+    }
+  }
+
+}
+
+void HistoManager::Fill2D(vector <TH2F*> v) {
+
+  //fills 2D histograms from Ebuffer
+  for (int n=0; n<hiscount; n++) {//loops over 1D histograms
+    for (int m=0; m<(hiscount2); m++) {//loops over 2D histograms
+      if (namearray.at(n)==namearray2.at(m*2)) {
+        for (int o=0; o<hiscount; o++) {
+          for (int p=0; p<hiscount2; p++) {
+            if (namearray.at(o)==namearray2.at(p*2+1)) {
+              if (Ebuffer.at(n)>0 && Ebuffer.at(o)>0) {
+                v.at(m)->Fill(Ebuffer.at(n),Ebuffer.at(o),1);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+}
+
+void HistoManager::SetCoinVol(G4String name) {
+
+  coinVol = name;
+
+}
+
+void HistoManager::SetCoinVol(G4String name, G4String name2) {
+
+  coinVol = name;
+  coinVol2= name2;
+
+}
+
+void HistoManager::EndOfEvent() {
+
+  Fill2D(hisarray2);
+  FillJoin();
+
+  for (int n=0; n<hiscount; n++) {
+
+    if (Ebuffer.at(n)==0) {//Checks if coinVol triggered this event
+
+      if (namearray.at(n) == coinVol || namearray.at(n) == coinVol2) {
+        break;//Doesn't write to coincidence Histo's if coinVol didn't trigger
+      }
+
+    }
+
+    if (n == Ebuffer.size()-1) {
+      file.cd("/coincidence");
+      Fill2D(hisarraycoin2);
+      Fill1D();
+    }
+
+  }
+
+  for (int n=0; n<hiscount; n++) {
+    Ebuffer.at(n)=0;//Empties buffer at end of each event
+  }
+
+}

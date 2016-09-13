@@ -1,0 +1,8 @@
+{
+
+  TF1* f1 = new TF1("f1","1+1/8*pow(cos(x),2)+1/24*pow(cos(x),4)",0,3.14159/2.);
+  f1->Draw();
+
+  cout << f1->Random() << endl;
+
+}

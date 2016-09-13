@@ -1,0 +1,154 @@
+#include "PrimaryGeneratorAction.hh"
+
+#include "G4Event.hh"
+#include "G4ParticleGun.hh"
+#include "G4ParticleTable.hh"
+#include "G4ParticleDefinition.hh"
+#include "CascadeGenerator.hh"
+#include "TF1.h"
+#include "TRandom.h"
+//#define c 3e8
+
+#include <fstream>
+#include <iomanip>
+//#include <TF1.h>
+
+#include <cstdlib>
+using std::rand;
+using std::srand;
+//using std::RAND_MAX;
+
+//#include <stdlib>
+//using std::RAND_MAX
+
+#include <iostream>
+using std::cout;
+using std::cin;
+using std::endl;
+
+#include <ctime> //prototype for time
+using std::time;
+
+#include "TRandom.h"
+
+G4ParticleTable* particleTable = G4ParticleTable::GetParticleTable();
+int decaynum;
+double phi_old;
+
+TF1 *f1;
+TF1 *f2;
+TF1 *f3;
+
+//---------------------------------------------------------------------------------
+PrimaryGeneratorAction::PrimaryGeneratorAction(CascadeGenerator *aCasGen) {
+
+  CasGen = aCasGen;
+
+  srand(time(0)); //seeds random number generator
+  gRandom->SetSeed();
+  G4int n_particle = 1;
+  particleGun = new G4ParticleGun(n_particle);
+
+  f1 = new TF1("f1","1",-1,1);
+  f2 = new TF1("f2","1",0,TMath::Pi()*2.);
+  f3 = new TF1("f3","1+1/8*pow(TMath::Cos(x),2)+1/24*pow(TMath::Cos(x),4)",0,2*TMath::Pi());//Co60
+
+}
+
+//---------------------------------------------------------------------------------
+
+PrimaryGeneratorAction::~PrimaryGeneratorAction() {
+  delete particleGun;
+}
+
+//------------------------------------------------------------------------
+
+void PrimaryGeneratorAction::GammaDecay(G4Event* anEvent) {
+
+  G4ParticleTable* particleTable = G4ParticleTable::GetParticleTable();
+  G4String particleName;
+
+  particleGun->SetParticleDefinition(particleTable->FindParticle("gamma"));
+
+  G4double  x, y, z, phi;
+
+//Generates random isotropic direction
+
+  z = f1->GetRandom();//(-1)->(1)
+  phi = f2->GetRandom();// (0)->(2pi)
+//  if (decaynum==1) phi = phi_old+f3->GetRandom();// (0)->(2pi) 60Co
+  x = sqrt(1.-z*z)*cos(phi);
+  y = sqrt(1.-z*z)*sin(phi);
+//     G4cout << decaynum << "\t" << phi << "\t" << phi_old << G4endl;
+  G4ThreeVector vect(x*mm,y*mm,z*mm);
+
+  particleGun->SetParticleMomentumDirection(vect);
+
+//  particleGun->SetParticleMomentumDirection(G4ThreeVector(0,0,-1));
+
+  particleGun->GeneratePrimaryVertex(anEvent);
+
+  phi_old = phi;
+
+}
+
+//------------------------------------------------------------------------
+
+void PrimaryGeneratorAction::BreitWigner() {
+
+  G4double G_g = 5.e-3;//keV
+  G4double G_a = 5.2;
+
+  G4double TargLen = 12.3;//cm
+  G4double k = -3.684;//dedx cm (keV/cm)
+  G4double c = 3235.+k*TargLen/2.;
+  G4double x = TargLen;
+
+  while (abs(x)>TargLen/2.) {
+
+    G4double E = gRandom->BreitWigner(3212.,G_a);
+    x = (E-c)/k;
+    G4ThreeVector pos(x*cm, 0*cm, 0*cm);
+    particleGun->SetParticlePosition(pos);
+
+  }
+
+}
+
+//------------------------------------------------------------------------
+
+void PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent) {
+
+  double z = f1->GetRandom();//(-1)->(1)
+  z = z*12.3/2.;//random position along length of target
+
+  particleGun->SetParticlePosition(G4ThreeVector(z*cm,0,0*cm));//at random position along length of target  
+//  particleGun->SetParticlePosition(G4ThreeVector(0,0,0));//at center of target
+//  particleGun->SetParticlePosition(G4ThreeVector(0,(3.175+15.0)*cm,0));//15 cm above outer chamber
+//  particleGun->SetParticlePosition(G4ThreeVector(0*cm,0*cm,-(0.953+0.1)*cm));//60Co in target
+//  particleGun->SetParticlePosition(G4ThreeVector(-0.25*cm,3.175*cm,-0.25*cm));//
+
+//  particleGun->SetParticleEnergy(0.662*MeV);
+//  GammaDecay(anEvent);
+
+  std::vector<double> cascade = CasGen->GetCascade();
+  std::vector<double>::iterator it;
+
+  decaynum=0;
+/*
+  for (it=cascade.begin(); it!=cascade.end(); it++) {
+    particleGun->SetParticleEnergy(*it*MeV);
+    GammaDecay(anEvent);
+//     G4cout << decaynum << G4endl;
+    decaynum+=1;
+  }
+*/
+  for (int ii=0; ii<1; ii++) {
+    particleGun->SetParticleEnergy(10.1*MeV);
+    GammaDecay(anEvent);
+//     G4cout << decaynum << G4endl;
+    decaynum+=1;
+  }
+
+}
+

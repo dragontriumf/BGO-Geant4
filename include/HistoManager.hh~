@@ -1,0 +1,37 @@
+
+#ifndef HistoManager_h
+#define HistoManager_h 1
+using namespace std;
+#include "globals.hh"
+#include <TH1F.h>
+#include <TH2F.h>
+#include <TFile.h>
+#include <TFolder.h>
+#include <vector>
+#include <stdio.h>
+
+class HistoManager
+{
+  public:
+  
+    HistoManager();
+   ~HistoManager();
+    void Fill(G4String,G4int,G4int);
+    void AddHisto(G4String name);
+    void AddHisto(G4String name0, G4String name1);
+    void EndOfEvent();
+    void SetCoinVol(G4String name);
+    void SetCoinVol(G4String name, G4String name2);
+    void Join(G4String name0, G4String name2, G4String name3, G4String name4);
+
+  private:
+
+  void Fill2D(vector <TH2F*> v);
+  void Fill1D();
+
+};
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+#endif
+

@@ -1,0 +1,205 @@
+#include "TFile.h"
+#include "TH1.h"
+#include "TF1.h"
+//#include "TEvent.h"
+#include "TTree.h"
+#include "TChain.h"
+#include "math.h"
+#include "TRandom.h"
+#include <iostream>
+#include <fstream>
+using namespace std;
+
+double factorial(int number) {
+
+  if (number==0) return 1;
+
+  int n;
+  double factorial=number;
+  for (n=number;n>1;n--) {
+      factorial*=(n-1);
+  }
+
+  return factorial;
+
+}
+
+int main() {
+
+  ofstream outfile("data.dat",ios::app);
+
+  double thres = 1.0;//MeV
+/*
+  struct Data_Event {
+    Float_t E_tot;
+    Float_t E_det[10];
+    Int_t E_detnum[10];
+    Int_t Mult;
+  };
+*/
+
+  struct Data_Event {
+    Float_t sum;
+    Float_t esort[10];
+    Float_t ecal[30];
+    Int_t Mult;
+  };
+
+
+  struct Data_Run {
+    Int_t Event;
+    Int_t Run;
+    Float_t cascade[5];
+  };
+
+  Data_Event data_event;
+  Data_Run data_run;
+
+  TH1F *h_multexp = new TH1F("mult exp","mult exp", 10, 0, 10);
+
+  h_multexp->SetBinContent(1,10);
+  h_multexp->SetBinContent(2,32);
+  h_multexp->SetBinContent(3,51);
+  h_multexp->SetBinContent(4,39);
+  h_multexp->SetBinContent(5,26);
+  h_multexp->SetBinContent(6,16);
+  h_multexp->SetBinContent(7,2);
+  h_multexp->SetBinContent(8,1);
+  h_multexp->SetBinContent(9,0);
+  h_multexp->SetBinContent(10,0);
+
+  TH1F *h_E0exp = new TH1F("E0 exp","E0 exp", 10, 0, 10);
+
+  h_E0exp->SetBinContent(1,0);
+  h_E0exp->SetBinContent(2,34);
+  h_E0exp->SetBinContent(3,37);
+  h_E0exp->SetBinContent(4,47);
+  h_E0exp->SetBinContent(5,27);
+  h_E0exp->SetBinContent(6,9);
+  h_E0exp->SetBinContent(7,14);
+  h_E0exp->SetBinContent(8,5);
+  h_E0exp->SetBinContent(9,7);
+  h_E0exp->SetBinContent(10,4);
+
+  int low, high;
+
+  std::cout << "enter low & high run numbers:" << std::endl;
+//2754
+  std::cin >> low >> high;
+  std::cout << std::endl;
+
+  for (int j=low; j<=high; j++) {//loops through low to high run numbers/files
+
+//    if (j==1015) continue;
+
+    TH1F *h_mult = new TH1F("mult sim","mult sim", 10, 0, 10);
+
+    TH1F *h_E0 = new TH1F("E0 sim","E0 sim", 10, 0, 10);
+
+    char FileName[30];
+    sprintf(FileName,"$(pwd)/76Se/Run_%i.root",j);
+
+    TChain *c_event = new TChain("Event");
+    c_event->AddFile(FileName);
+    c_event->SetBranchAddress("Events",&data_event);
+
+    TChain *c_run = new TChain("Run");
+    c_run->AddFile(FileName);
+    c_run->SetBranchAddress("Run",&data_run);
+
+    int nentries = (int)c_event->GetEntries();
+
+    int n_gamma = 0;
+
+    c_run->GetEntry(0);
+
+    for (int i=0; i<5; i++) {
+      if (data_run.cascade[i]>0.05) {
+        n_gamma+=1;//number of gammas in cascade
+      }
+    }
+
+    for (int i=0; i<nentries; i++) {
+      c_event->GetEntry(i);
+      if (data_event.esort[0]>thres) {
+//      if (data_event.E_det[0]>thres) {
+//        cout << data_event.Mult << endl;
+        h_mult->Fill(data_event.Mult-1,1);
+//        h_E0->Fill(data_event.E_det[0],1);
+      }
+
+    }
+
+    double eff = double(h_mult->GetEntries())/double(data_run.Event);//BGO efficiency
+
+//
+
+    for (int k=0; k<1; k++) {//number repititions for each file/cascade
+
+      c_run->GetEntry(0);
+
+      double lnL = 0;
+      double chi2 = 0;
+/*
+      for (int i=1; i<=10; i++) {//calculates liklihood for each multiplicity bin and sums them
+
+        double norm = h_multexp->Integral()/h_multnew->Integral();
+
+        double Xi = h_multexp->GetBinContent(i);//exp data
+        double Ni = h_multnew->GetBinContent(i)*norm;//sim data
+
+        if (pow(Ni,Xi) * pow(2.71828,Ni*(-1.)) / factorial(int(Xi))<=0) {//exits if liklihood=nan
+          lnL = 1000;//==nan
+//          k--;
+          break;
+        }
+
+        double lnL_temp = log( pow(Ni,Xi) * pow(2.71828,Ni*(-1.)) / factorial(int(Xi)) );
+
+        lnL += lnL_temp;
+
+//        std::cout << i << "\t" <<  Ni << "\t" << Xi << "\t" << lnL_temp << std::endl;
+
+      }
+
+      std::cout << j << "\t" << n_gamma << "\t" << eff << "\t" << (-2)*lnL << std::endl;
+      outfile   << j << "\t" << n_gamma << "\t" << eff << "\t" << (-2)*lnL << std::endl;
+*/
+/*
+      for (int i=1; i<=10; i++) {//calculates chi2 for each multiplicity bin and sums them
+/*
+        double norm = h_multexp->Integral()/h_mult->Integral();
+        double Xi = h_multexp->GetBinContent(i);//exp data
+        double Ni = h_mult->GetBinContent(i)*norm;//sim data
+
+
+        double norm = h_E0exp->Integral()/h_E0->Integral();
+        double Xi = h_E0exp->GetBinContent(i);//exp data
+        double Ni = h_E0->GetBinContent(i)*norm;//sim data
+
+        double chi2_temp = pow(Xi-Ni,2)/Xi;
+        if (Xi==0) chi2_temp = 1;
+
+        chi2 += chi2_temp;
+
+//        std::cout << i << "\t" <<  Ni << "\t" << Xi << "\t" << chi2_temp << std::endl;
+
+      }
+*/
+      TF1* f1 = new TF1("f1","gaus",0,11);
+      h_mult->Fit(f1);
+      std::cout << j << "\t" << n_gamma << "\t" << f1->GetParameter(1) << "\t" << eff << std::endl;
+//      std::cout << j << "\t" << n_gamma << "\t" << eff << "\t" << chi2 << std::endl;
+//      outfile   << j << "\t" << n_gamma << "\t" << eff << "\t" << chi2 << std::endl;
+
+    }
+
+//
+
+    delete c_event;
+    delete h_mult;
+    delete h_E0;
+
+  }
+
+}

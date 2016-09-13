@@ -1,0 +1,189 @@
+#include "TrackerSD.hh"
+
+using std::rand;
+using std::srand;
+
+using std::cout;
+using std::cin;
+using std::endl;
+
+namespace {
+
+G4double BGO_temp[31];
+
+G4double BGO_x[31];
+
+}
+
+//--------------------------------------------------------------------------------
+
+TrackerSD::TrackerSD(G4String name, DAQManager* aDAQMgr, InputManager* aInMgr):G4VSensitiveDetector(name) {
+
+  Emax=7000;                         
+
+  DAQMgr = aDAQMgr;
+  InMgr = aInMgr;
+
+  for (int i=0; i<Emax; i++){
+
+    if (i<=31) {
+      BGO_temp[i] = 0;
+    }
+
+  }        
+
+  HCname=name;
+  collectionName.insert(name);
+
+  BGO_x[1] = -86.7/10.;
+  BGO_x[2] = -28.9/10.;
+  BGO_x[3] = 28.9/10.;
+  BGO_x[4] = 86.7/10.;
+  BGO_x[5] = -57.8/10.;
+  BGO_x[6] = 0.;
+  BGO_x[7] = 57.8/10.;
+  BGO_x[8] = -57.8/10.;
+  BGO_x[9] = 0.;
+  BGO_x[10] = 57.8/10.;
+  BGO_x[11] = -86.7/10.;
+  BGO_x[12] = -28.9/10.;
+  BGO_x[13] = 28.9/10.;
+  BGO_x[14] = 86.7/10.;
+  BGO_x[15] = -57.8/10.;
+  BGO_x[16] = 0.;
+  BGO_x[17] = 57.8/10.;
+  BGO_x[18] = -57.8/10.;
+  BGO_x[19] = 0.;
+  BGO_x[20] = 57.8/10.;
+  BGO_x[21] = -28.9/10.;
+  BGO_x[22] = 28.9/10.;
+  BGO_x[23] = -86.7/10.;
+  BGO_x[24] = 86.7/10.;
+  BGO_x[25] = -115.6/10.;
+  BGO_x[26] = 115.6/10.;
+  BGO_x[27] = -144.5/10.;
+  BGO_x[28] = 144.5/10.;
+  BGO_x[29] = -115.6/10.;
+  BGO_x[30] = 115.6/10.;
+
+}
+
+TrackerSD::~TrackerSD() {
+/*
+  for (int i=0; i<=31; i++) {
+    G4cout << i << "\t" << hE2->Integral(660,664,i+1,i+1) << "\t" << hE2->Integral(1326,1334,i+1,i+1) << "\t" << hE2->Integral(4438,4442,i+1,i+1) << "\t" << hE2->Integral(6128,6132,i+1,i+1) << G4endl;
+  }
+*/
+
+}
+
+//-------------------------------------------------------------------------------
+
+void TrackerSD::Initialize(G4HCofThisEvent* HCE) {
+
+  trackerCollection = new TrackerHitsCollection(SensitiveDetectorName,collectionName[0]); 
+  static G4int HCID = -1;
+  if (HCID<0) {
+    HCID = G4SDManager::GetSDMpointer()->GetCollectionID(collectionName[0]);
+  }
+  HCE->AddHitsCollection( HCID, trackerCollection );
+
+}
+
+//-------------------------------------------------------------------------------
+
+G4bool TrackerSD::ProcessHits(G4Step* aStep,G4TouchableHistory*) {
+
+  edep = aStep->GetTotalEnergyDeposit();
+
+  if (edep==0.) return false;
+
+  TrackerHit* newHit = new TrackerHit();
+  newHit->SetTrackID  (aStep->GetTrack()->GetTrackID());
+  newHit->SetChamberNb(aStep->GetPreStepPoint()->GetTouchableHandle()->GetCopyNumber());
+
+  newHit->SetEdep(edep);
+  newHit->SetPos(aStep->GetPostStepPoint()->GetPosition());
+  
+  trackerCollection->insert(newHit);
+  
+  G4StepPoint* point = aStep->GetPostStepPoint();
+  pos = point->GetTouchableHandle()->GetVolume(0)->GetName();
+  location = aStep->GetPostStepPoint()->GetPosition();    
+
+  copynum = aStep->GetPreStepPoint()->GetTouchableHandle()->GetCopyNumber(1);
+  BGO_temp[copynum] += edep;
+
+  return true;
+
+}
+
+//------------------------------------------------------------
+
+void TrackerSD::EndOfEvent(G4HCofThisEvent*) {
+
+  G4int NbHits = trackerCollection->entries();
+
+  if (NbHits>0) { 
+
+    if (pos == "BGO") {
+
+      for (G4int n=0; n<31; n++) {
+
+        double Etot = BGO_temp[n];
+
+        Etot /= MeV;//convert to MeV
+
+        if (Etot>0) {
+
+          double factor = sqrt(8.0*log(2.0));
+          double k = 0.1733;
+          double pi = 3.14159265;
+          double sigma = 1.*(k*sqrt(Etot))/factor*0.8;
+
+          bool Conv;
+          InMgr->GetVariable("Conv",Conv);
+
+          if (Conv==true) {
+            double Etot_new = gRandom->Gaus(Etot,sigma);
+//          double Etot_new = TrackerSD::Gaus(Etot,sigma);
+            if (Etot_new>0.) {
+              Etot = Etot_new;
+            }
+            else {
+              Etot = 0.;
+            }
+          }
+
+//          G4cout << "Hit in " << pos << " " << n << " depositing " << Etot << " MeV " << G4endl;//verbosity = high
+          DAQMgr->SetGammaE(Etot);
+          DAQMgr->SetDetNum(n);
+        }
+        BGO_temp[n] = 0;
+      }
+
+    }
+
+  }
+//  G4cout << "End of Event" << G4endl;
+}
+
+double TrackerSD::Gaus(double mean, double sigma) {
+
+  double u1 = rand()%100001;
+  u1 /= 100000.;//(0)->(1)
+
+  double u2 = rand()%100001;
+  u2 /= 100000.;//(0)->(1)
+
+  double normal = TMath::Sqrt(-2 * TMath::Log(u1)) * TMath::Cos(2 * 3.14159 * u2);
+
+  normal *= sigma;
+  normal += mean;
+
+  return normal;
+
+}
+
+
+
